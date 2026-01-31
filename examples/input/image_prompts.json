@@ -1,0 +1,36 @@
+{
+  "images": [
+    {
+      "image_prompt_No": 1,
+      "image_prompt": "Albert Einstein, age 5, year 1884, sitting in a modest German living room in Munich, playing with a magnetic compass his father gave him. Foreground wooden table with compass, midground curious child face with wonder, background warm family home interior. One dominant emotion: fascination. Natural daylight through window, cinematic framing, 16:9 aspect ratio."
+    },
+    {
+      "image_prompt_No": 2,
+      "image_prompt": "Albert Einstein, age 12, year 1891, studying geometry alone in his room in Munich. Foreground open mathematics textbook, midground concentrated young face, background simple bedroom with books. One dominant emotion: intellectual absorption. Soft lamp light, cinematic framing, 16:9 aspect ratio."
+    },
+    {
+      "image_prompt_No": 3,
+      "image_prompt": "Albert Einstein, age 17, year 1896, walking through the streets of Zurich as a new student at ETH. Foreground cobblestone street, midground determined young man with notebook, background Swiss architecture and other students. One dominant emotion: hopeful ambition. Overcast daylight, cinematic framing, 16:9 aspect ratio."
+    },
+    {
+      "image_prompt_No": 4,
+      "image_prompt": "Albert Einstein, age 26, year 1905, working late at the Swiss Patent Office in Bern during his miracle year. Foreground scattered papers with equations, midground intense focused face illuminated by desk lamp, background dark office with patent files. One dominant emotion: breakthrough concentration. Warm lamp light against darkness, cinematic framing, 16:9 aspect ratio."
+    },
+    {
+      "image_prompt_No": 5,
+      "image_prompt": "Albert Einstein, age 42, year 1921, receiving the Nobel Prize in Stockholm. Foreground ceremonial podium, midground dignified scientist in formal attire, background grand Swedish Academy hall with audience. One dominant emotion: humble recognition. Elegant chandelier lighting, cinematic framing, 16:9 aspect ratio."
+    },
+    {
+      "image_prompt_No": 6,
+      "image_prompt": "Albert Einstein, age 54, year 1933, leaving Germany forever with a suitcase at a train station. Foreground luggage, midground resolute face showing determination mixed with sadness, background departing train and grey sky. One dominant emotion: exile. Natural overcast light, cinematic framing, 16:9 aspect ratio."
+    },
+    {
+      "image_prompt_No": 7,
+      "image_prompt": "Albert Einstein, age 60, year 1939, writing the famous letter to President Roosevelt about atomic energy at his Princeton study. Foreground handwritten letter, midground grave concerned expression, background book-lined study. One dominant emotion: moral weight. Warm study lamp light, cinematic framing, 16:9 aspect ratio."
+    },
+    {
+      "image_prompt_No": 8,
+      "image_prompt": "Albert Einstein, age 72, year 1951, walking alone on the Princeton campus in autumn. Foreground fallen leaves, midground elderly physicist in casual sweater with wild white hair, background Gothic university buildings. One dominant emotion: peaceful contemplation. Golden autumn afternoon light, cinematic framing, 16:9 aspect ratio."
+    }
+  ]
+}

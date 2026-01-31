@@ -1,0 +1,12 @@
+{
+  "_comment": "Set OPENAI_API_KEY environment variable or add openai_api_key here",
+  "prompts_file": "image_prompts.json",
+  "output_dir": "generated_images",
+  "model": "dall-e-3",
+  "size": "1792x1024",
+  "quality": "hd",
+  "style": "natural",
+  "start_from": 1,
+  "delay_between": 2.0,
+  "prefetch_references": true
+}
