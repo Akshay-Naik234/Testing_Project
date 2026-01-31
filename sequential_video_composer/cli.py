@@ -230,7 +230,8 @@ Color Grades:
         )
 
     else:
-        default_config = Path(__file__).parent / "video_config.json"
+        project_root = Path(__file__).parent.parent
+        default_config = project_root / "examples" / "input" / "video_config.json"
         if default_config.exists():
             print(f"Using default configuration: {default_config}")
             load_config_and_create_video(default_config)
