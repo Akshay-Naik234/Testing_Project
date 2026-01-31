@@ -1,4 +1,4 @@
-"""Image Generator - Generates cinematic biographical images using OpenAI DALL-E API."""
+"""Image Generator - Generates cinematic biographical images using Bytez SDK or OpenAI API."""
 
 import os
 import re
@@ -8,13 +8,12 @@ import base64
 import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-from openai import OpenAI
 
 from .reference_searcher import ReferenceSearcher
 
 
 class ImageGenerator:
-    """Generates cinematic biographical images using OpenAI's DALL-E API."""
+    """Generates cinematic biographical images using Bytez SDK or OpenAI API."""
 
     SYSTEM_PROMPT = """AUTONOMOUS CINEMATIC IMAGE GENERATOR v4.1
 (VISUAL WOW-FACTOR ENFORCED - RETENTION-OPTIMIZED - HISTORICALLY RIGOROUS - NETFLIX/HBO DOCUMENTARY GRADE)
@@ -163,10 +162,11 @@ DEFAULT TECHNICAL STANDARD:
         model: str = "dall-e-3",
         size: str = "1792x1024",
         quality: str = "hd",
-        style: str = "natural"
+        style: str = "natural",
+        use_bytez: bool = False
     ):
         self.api_key = api_key
-        self.client = OpenAI(api_key=api_key)
+        self.use_bytez = use_bytez
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -178,7 +178,19 @@ DEFAULT TECHNICAL STANDARD:
         self.quality = quality
         self.style = style
         
-        self.reference_searcher = ReferenceSearcher(api_key, self.cache_dir)
+        if use_bytez:
+            from bytez import Bytez
+            self.sdk = Bytez(api_key)
+            bytez_model = model if model.startswith("openai/") else f"openai/{model}"
+            self.dalle_model = self.sdk.model(bytez_model)
+            self.openai_client = None
+        else:
+            from openai import OpenAI
+            self.openai_client = OpenAI(api_key=api_key)
+            self.sdk = None
+            self.dalle_model = None
+        
+        self.reference_searcher = ReferenceSearcher(api_key, self.cache_dir, use_bytez=use_bytez)
         
         self.generated_images: List[Dict] = []
         self.subject_consistency: Dict[str, str] = {}
@@ -339,17 +351,31 @@ DEFAULT TECHNICAL STANDARD:
         print(f"{'='*60}")
         
         try:
-            response = self.client.images.generate(
-                model=self.model,
-                prompt=enhanced_prompt,
-                size=self.size,
-                quality=self.quality,
-                style=self.style,
-                n=1
-            )
-            
-            image_url = response.data[0].url
-            revised_prompt = getattr(response.data[0], 'revised_prompt', None)
+            if self.use_bytez:
+                result = self.dalle_model.run(enhanced_prompt)
+                
+                if result.error:
+                    raise Exception(f"Bytez API error: {result.error}")
+                
+                image_url = result.output
+                revised_prompt = None
+                if hasattr(result, 'provider') and result.provider:
+                    provider_data = result.provider.get('data', [])
+                    if provider_data and len(provider_data) > 0:
+                        revised_prompt = provider_data[0].get('revised_prompt')
+            else:
+                openai_model = self.model.replace("openai/", "") if self.model.startswith("openai/") else self.model
+                response = self.openai_client.images.generate(
+                    model=openai_model,
+                    prompt=enhanced_prompt,
+                    size=self.size,
+                    quality=self.quality,
+                    style=self.style,
+                    n=1
+                )
+                
+                image_url = response.data[0].url
+                revised_prompt = getattr(response.data[0], 'revised_prompt', None)
             
             image_filename = f"{image_number}.png"
             image_path = self.output_dir / image_filename
@@ -498,9 +524,16 @@ def load_config_and_generate(config_path: Union[str, Path]) -> None:
     
     config_dir = config_path.parent
     
-    api_key = config.get('openai_api_key') or os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OpenAI API key not found in config or environment")
+    use_bytez = config.get('bytez_enabled', False)
+    
+    if use_bytez:
+        api_key = config.get('bytez_api_key') or os.environ.get('BYTEZ_API_KEY')
+        if not api_key:
+            raise ValueError("Bytez API key not found in config or environment (bytez_enabled is true)")
+    else:
+        api_key = config.get('openai_api_key') or os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OpenAI API key not found in config or environment (bytez_enabled is false)")
     
     prompts_file = config_dir / config.get('prompts_file', 'image_prompts.json')
     output_dir = config_dir / config.get('output_dir', 'generated_images')
@@ -511,7 +544,8 @@ def load_config_and_generate(config_path: Union[str, Path]) -> None:
         model=config.get('model', 'dall-e-3'),
         size=config.get('size', '1792x1024'),
         quality=config.get('quality', 'hd'),
-        style=config.get('style', 'natural')
+        style=config.get('style', 'natural'),
+        use_bytez=use_bytez
     )
     
     generator.generate_from_prompts_file(

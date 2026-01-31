@@ -7,7 +7,6 @@ import base64
 import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from openai import OpenAI
 
 
 class ReferenceSearcher:
@@ -15,8 +14,20 @@ class ReferenceSearcher:
 
     AGE_RANGES = ["young (childhood)", "teenager", "young adult (20s-30s)", "middle-aged (40s-50s)", "elderly (60+)"]
 
-    def __init__(self, api_key: str, cache_dir: Path):
-        self.client = OpenAI(api_key=api_key)
+    def __init__(self, api_key: str, cache_dir: Path, use_bytez: bool = False):
+        self.use_bytez = use_bytez
+        
+        if use_bytez:
+            from bytez import Bytez
+            self.sdk = Bytez(api_key)
+            self.chat_model = self.sdk.model("openai/gpt-4o")
+            self.openai_client = None
+        else:
+            from openai import OpenAI
+            self.openai_client = OpenAI(api_key=api_key)
+            self.sdk = None
+            self.chat_model = None
+        
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.references_cache: Dict[str, Dict] = {}
@@ -93,16 +104,29 @@ Format as JSON with this structure:
 }}"""
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are a historical research assistant specializing in biographical details and physical appearances of historical figures. Provide accurate, detailed information based on historical records, photographs, and documented descriptions."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3
-            )
-
-            content = response.choices[0].message.content
+            messages = [
+                {"role": "system", "content": "You are a historical research assistant specializing in biographical details and physical appearances of historical figures. Provide accurate, detailed information based on historical records, photographs, and documented descriptions."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            if self.use_bytez:
+                result = self.chat_model.run(messages)
+                
+                if result.error:
+                    raise Exception(f"Bytez API error: {result.error}")
+                
+                output = result.output
+                if isinstance(output, dict):
+                    content = output.get('content', str(output))
+                else:
+                    content = str(output)
+            else:
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages,
+                    temperature=0.3
+                )
+                content = response.choices[0].message.content
             
             json_match = re.search(r'\{[\s\S]*\}', content)
             if json_match:
@@ -165,20 +189,21 @@ Format as JSON with this structure:
         """Analyze a generated image to extract features for consistency."""
         if not image_path.exists():
             return ""
+        
+        if self.use_bytez:
+            return ""
 
         try:
             with open(image_path, "rb") as f:
                 image_data = base64.b64encode(f.read()).decode("utf-8")
 
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": f"""Analyze this image of {subject_name} and describe the key facial features that should remain consistent in future images:
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"""Analyze this image of {subject_name} and describe the key facial features that should remain consistent in future images:
 1. Eye shape and spacing
 2. Nose shape and size
 3. Jaw and chin structure
@@ -187,18 +212,32 @@ Format as JSON with this structure:
 6. Overall face shape
 
 Provide a concise description that can be used to maintain consistency in future image generations."""
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/png;base64,{image_data}"}
-                            }
-                        ]
-                    }
-                ],
-                max_tokens=500
-            )
-
-            return response.choices[0].message.content
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{image_data}"}
+                        }
+                    ]
+                }
+            ]
+            
+            if self.use_bytez:
+                result = self.chat_model.run(messages)
+                
+                if result.error:
+                    raise Exception(f"Bytez API error: {result.error}")
+                
+                output = result.output
+                if isinstance(output, dict):
+                    return output.get('content', str(output))
+                return str(output)
+            else:
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages,
+                    max_tokens=500
+                )
+                return response.choices[0].message.content
 
         except Exception as e:
             print(f"Error analyzing image: {e}")

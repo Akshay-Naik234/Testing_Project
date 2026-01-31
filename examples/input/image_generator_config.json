@@ -1,5 +1,7 @@
 {
-  "_comment": "Set OPENAI_API_KEY environment variable or add openai_api_key here",
+  "bytez_enabled": true,
+  "bytez_api_key": "48637d54619acc2875c4ae8d2c41b944",
+  "openai_api_key": "",
   "prompts_file": "image_prompts.json",
   "output_dir": "generated_images",
   "model": "dall-e-3",
