@@ -427,7 +427,8 @@ class SequentialVideoOrchestrator:
         movement_style: str = "random",
         color_grade: str = "cinematic",
         enable_vignette: bool = True,
-        enable_film_grain: bool = False
+        enable_film_grain: bool = False,
+        duration_config_path: Optional[Union[str, Path]] = None
     ):
         self.images_root = Path(images_root)
         self.output_path = Path(output_path)
@@ -444,10 +445,42 @@ class SequentialVideoOrchestrator:
         self.color_grade = color_grade
         self.enable_vignette = enable_vignette
         self.enable_film_grain = enable_film_grain
+        self.duration_config_path = Path(duration_config_path) if duration_config_path else None
+        self.image_durations: Dict[int, float] = {}
+
+        if self.duration_config_path:
+            self._load_duration_config()
 
         self.transitions = TransitionEffects(resolution)
         self.movements = MovementStyles(resolution)
         self.color_grading = ColorGrading()
+
+    def _load_duration_config(self) -> None:
+        """Load image durations from JSON configuration file."""
+        if not self.duration_config_path or not self.duration_config_path.exists():
+            print(f"Duration config file not found: {self.duration_config_path}")
+            return
+
+        try:
+            with open(self.duration_config_path, 'r') as f:
+                config = json.load(f)
+
+            images_data = config.get('images', [])
+            for img_data in images_data:
+                image_num = img_data.get('image')
+                duration = img_data.get('duration')
+                if image_num is not None and duration is not None:
+                    self.image_durations[image_num] = float(duration)
+
+            print(f"Loaded durations for {len(self.image_durations)} images from config")
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error loading duration config: {e}")
+
+    def get_duration_for_image(self, image_number: int) -> float:
+        """Get the duration for a specific image number."""
+        if self.image_durations and image_number in self.image_durations:
+            return self.image_durations[image_number]
+        return self.image_duration
 
     def discover_numbered_images(self) -> List[Tuple[int, Path]]:
         """Discover and sort images by their numeric prefix."""
@@ -552,6 +585,9 @@ class SequentialVideoOrchestrator:
                 return random.choice(['pan_left', 'pan_right', 'breathing'])
             else:
                 return random.choice(['zoom_out', 'focus_center', 'gentle_drift'])
+        elif self.movement_style == "documentary":
+            subtle_movements = ['zoom_in', 'zoom_out', 'gentle_drift', 'focus_center']
+            return subtle_movements[index % len(subtle_movements)]
         else:
             return self.movement_style if self.movement_style in MovementStyles.MOVEMENT_TYPES else 'zoom_in'
 
@@ -594,14 +630,16 @@ class SequentialVideoOrchestrator:
                 print(f"Error loading image {image_path}: {e}")
                 continue
 
+            image_duration = self.get_duration_for_image(num)
             movement = self._get_movement_for_image(i, total)
+            print(f"  Duration: {image_duration}s")
             print(f"  Movement style: {movement}")
             print(f"  Color grade: {self.color_grade}")
             print(f"  Vignette: {self.enable_vignette}")
 
             clip = self.movements.create_animated_clip(
                 image_path=image_path,
-                duration=self.image_duration,
+                duration=image_duration,
                 movement_type=movement,
                 zoom_intensity=self.zoom_intensity,
                 color_grader=self.color_grading,
@@ -741,7 +779,8 @@ def create_sequential_video(
     movement_style: str = "random",
     color_grade: str = "cinematic",
     enable_vignette: bool = True,
-    enable_film_grain: bool = False
+    enable_film_grain: bool = False,
+    duration_config_path: Optional[Union[str, Path]] = None
 ) -> None:
     """Convenience function to create a sequential video from numbered images.
     
@@ -750,7 +789,7 @@ def create_sequential_video(
         output_path: Output video file path
         resolution: Video resolution as (width, height)
         fps: Frames per second
-        image_duration: Duration each image is displayed (seconds)
+        image_duration: Default duration each image is displayed (seconds)
         crossfade_duration: Duration of transitions between images (seconds)
         zoom_intensity: Ken Burns zoom intensity (1.0 = no zoom, 1.2 = 20% zoom)
         effects_intensity: Overall effects intensity (0.0 to 1.0)
@@ -760,6 +799,7 @@ def create_sequential_video(
         color_grade: Color grading style - 'cinematic', 'documentary', 'vintage', etc.
         enable_vignette: Enable vignette effect
         enable_film_grain: Enable film grain overlay
+        duration_config_path: Optional path to JSON file with per-image durations
     """
     orchestrator = SequentialVideoOrchestrator(
         images_root=images_root,
@@ -775,7 +815,8 @@ def create_sequential_video(
         movement_style=movement_style,
         color_grade=color_grade,
         enable_vignette=enable_vignette,
-        enable_film_grain=enable_film_grain
+        enable_film_grain=enable_film_grain,
+        duration_config_path=duration_config_path
     )
     orchestrator.create_video()
 
@@ -803,6 +844,10 @@ def load_config_and_create_video(config_path: Union[str, Path]) -> None:
     if 'audio' in config and config['audio']:
         audio_path = config_dir / config['audio']
 
+    duration_config_path = None
+    if 'duration_config' in config and config['duration_config']:
+        duration_config_path = config_dir / config['duration_config']
+
     create_sequential_video(
         images_root=images_root,
         output_path=output_path,
@@ -817,7 +862,8 @@ def load_config_and_create_video(config_path: Union[str, Path]) -> None:
         movement_style=config.get('movement_style', 'random'),
         color_grade=config.get('color_grade', 'cinematic'),
         enable_vignette=config.get('enable_vignette', True),
-        enable_film_grain=config.get('enable_film_grain', False)
+        enable_film_grain=config.get('enable_film_grain', False),
+        duration_config_path=duration_config_path
     )
 
 

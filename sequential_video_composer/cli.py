@@ -132,7 +132,7 @@ Color Grades:
         '--movement', '-m',
         type=str,
         default='random',
-        help='Movement style: random, sequential, dramatic_sequence, or specific type (default: random)'
+        help='Movement style: random, sequential, dramatic_sequence, documentary, or specific type (default: random)'
     )
 
     parser.add_argument(
@@ -159,6 +159,12 @@ Color Grades:
         '--film-grain',
         action='store_true',
         help='Enable film grain overlay effect'
+    )
+
+    parser.add_argument(
+        '--duration-config',
+        type=str,
+        help='Path to JSON file with per-image durations (overrides --duration)'
     )
 
     args = parser.parse_args()
@@ -191,12 +197,19 @@ Color Grades:
             print(f"Warning: Audio file not found: {audio_path}")
             audio_path = None
 
+        duration_config_path = Path(args.duration_config) if args.duration_config else None
+        if duration_config_path and not duration_config_path.exists():
+            print(f"Warning: Duration config file not found: {duration_config_path}")
+            duration_config_path = None
+
         enable_vignette = args.vignette and not args.no_vignette
 
         print(f"Creating video from images in: {images_path}")
         print(f"  Transition style: {args.transition}")
         print(f"  Movement style: {args.movement}")
         print(f"  Color grade: {args.color_grade}")
+        if duration_config_path:
+            print(f"  Duration config: {duration_config_path}")
         
         create_sequential_video(
             images_root=images_path,
@@ -212,7 +225,8 @@ Color Grades:
             movement_style=args.movement,
             color_grade=args.color_grade,
             enable_vignette=enable_vignette,
-            enable_film_grain=args.film_grain
+            enable_film_grain=args.film_grain,
+            duration_config_path=duration_config_path
         )
 
     else:
