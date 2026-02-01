@@ -25,7 +25,9 @@ class MovementStyles:
         'breathing',
         'dramatic_zoom',
         'gentle_drift',
-        'focus_center'
+        'focus_center',
+        'minimal',
+        'static'
     ]
 
     def __init__(self, resolution: Tuple[int, int]):
@@ -51,9 +53,9 @@ class MovementStyles:
         if base_img.mode != 'RGB':
             base_img = base_img.convert('RGB')
         
-        max_zoom = max(zoom_intensity, 1.3)
-        scaled_width = int(self.width * max_zoom * 1.1)
-        scaled_height = int(self.height * max_zoom * 1.1)
+        max_zoom = max(zoom_intensity, 1.1)
+        scaled_width = int(self.width * max_zoom * 1.05)
+        scaled_height = int(self.height * max_zoom * 1.05)
         
         base_img = base_img.resize((scaled_width, scaled_height), PILImage.LANCZOS)
         base_array = np.array(base_img)
@@ -134,57 +136,64 @@ class MovementStyles:
             return zoom, 0, 0
 
         elif movement_type == 'pan_left':
-            zoom = 1.0 + (zoom_intensity - 1.0) * 0.5
-            pan_x = -0.1 * progress
+            zoom = 1.0 + (zoom_intensity - 1.0) * 0.3
+            pan_x = -0.02 * progress
             return zoom, pan_x, 0
 
         elif movement_type == 'pan_right':
-            zoom = 1.0 + (zoom_intensity - 1.0) * 0.5
-            pan_x = 0.1 * progress
+            zoom = 1.0 + (zoom_intensity - 1.0) * 0.3
+            pan_x = 0.02 * progress
             return zoom, pan_x, 0
 
         elif movement_type == 'pan_up':
-            zoom = 1.0 + (zoom_intensity - 1.0) * 0.5
-            pan_y = -0.08 * progress
+            zoom = 1.0 + (zoom_intensity - 1.0) * 0.3
+            pan_y = -0.02 * progress
             return zoom, 0, pan_y
 
         elif movement_type == 'pan_down':
-            zoom = 1.0 + (zoom_intensity - 1.0) * 0.5
-            pan_y = 0.08 * progress
+            zoom = 1.0 + (zoom_intensity - 1.0) * 0.3
+            pan_y = 0.02 * progress
             return zoom, 0, pan_y
 
         elif movement_type == 'diagonal_tl_br':
-            zoom = 1.0 + (zoom_intensity - 1.0) * progress
-            pan_x = 0.05 * progress
-            pan_y = 0.05 * progress
+            zoom = 1.0 + (zoom_intensity - 1.0) * progress * 0.5
+            pan_x = 0.01 * progress
+            pan_y = 0.01 * progress
             return zoom, pan_x, pan_y
 
         elif movement_type == 'diagonal_tr_bl':
-            zoom = 1.0 + (zoom_intensity - 1.0) * progress
-            pan_x = -0.05 * progress
-            pan_y = 0.05 * progress
+            zoom = 1.0 + (zoom_intensity - 1.0) * progress * 0.5
+            pan_x = -0.01 * progress
+            pan_y = 0.01 * progress
             return zoom, pan_x, pan_y
 
         elif movement_type == 'breathing':
-            zoom = 1.0 + 0.08 * np.sin(progress * np.pi * 2)
+            zoom = 1.0 + 0.02 * np.sin(progress * np.pi * 2)
             return zoom, 0, 0
 
         elif movement_type == 'dramatic_zoom':
-            zoom = 1.0 + (zoom_intensity * 1.3 - 1.0) * self._dramatic_ease(progress)
+            zoom = 1.0 + (zoom_intensity - 1.0) * self._dramatic_ease(progress)
             return zoom, 0, 0
 
         elif movement_type == 'gentle_drift':
-            zoom = 1.0 + (zoom_intensity - 1.0) * 0.3
-            pan_x = 0.03 * np.sin(progress * np.pi)
-            pan_y = 0.02 * np.cos(progress * np.pi)
+            zoom = 1.0 + (zoom_intensity - 1.0) * 0.2
+            pan_x = 0.01 * np.sin(progress * np.pi)
+            pan_y = 0.005 * np.cos(progress * np.pi)
             return zoom, pan_x, pan_y
 
         elif movement_type == 'focus_center':
-            zoom = 1.0 + (zoom_intensity - 1.0) * progress * 0.8
+            zoom = 1.0 + (zoom_intensity - 1.0) * progress * 0.5
             return zoom, 0, 0
 
+        elif movement_type == 'minimal':
+            zoom = 1.0 + (zoom_intensity - 1.0) * progress * 0.3
+            return zoom, 0, 0
+
+        elif movement_type == 'static':
+            return 1.0, 0, 0
+
         else:
-            zoom = 1.0 + (zoom_intensity - 1.0) * progress
+            zoom = 1.0 + (zoom_intensity - 1.0) * progress * 0.5
             return zoom, 0, 0
 
     def _ease_in_out_cubic(self, t: float) -> float:

@@ -27,7 +27,7 @@ class SequentialVideoOrchestrator:
         fps: int = 30,
         image_duration: float = 4.0,
         crossfade_duration: float = 1.2,
-        zoom_intensity: float = 1.15,
+        zoom_intensity: float = 1.03,
         effects_intensity: float = 0.7,
         audio_path: Optional[Union[str, Path]] = None,
         transition_style: str = "random",
@@ -160,7 +160,7 @@ class SequentialVideoOrchestrator:
             else:
                 return random.choice(['zoom_out', 'focus_center', 'gentle_drift'])
         elif self.movement_style == "documentary":
-            subtle_movements = ['zoom_in', 'zoom_out', 'gentle_drift', 'focus_center']
+            subtle_movements = ['minimal', 'static', 'breathing', 'minimal']
             return subtle_movements[index % len(subtle_movements)]
         else:
             return self.movement_style if self.movement_style in MovementStyles.MOVEMENT_TYPES else 'zoom_in'
