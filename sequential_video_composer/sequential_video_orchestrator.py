@@ -155,12 +155,17 @@ class MovementStyles:
         """Create an animated clip with the specified movement style and effects.
         
         Uses a memory-efficient approach with make_frame instead of creating many sub-clips.
+        Pre-scales the image larger to allow for smooth zooming without per-frame resizing.
         """
         base_img = PILImage.open(image_path)
         if base_img.mode != 'RGB':
             base_img = base_img.convert('RGB')
         
-        base_img = base_img.resize(self.resolution, PILImage.LANCZOS)
+        max_zoom = max(zoom_intensity, 1.3)
+        scaled_width = int(self.width * max_zoom * 1.1)
+        scaled_height = int(self.height * max_zoom * 1.1)
+        
+        base_img = base_img.resize((scaled_width, scaled_height), PILImage.LANCZOS)
         base_array = np.array(base_img)
 
         if color_grader and color_grade:
@@ -169,28 +174,40 @@ class MovementStyles:
         if enable_vignette:
             base_array = self._apply_vignette(base_array)
 
-        pil_img = PILImage.fromarray(base_array)
+        scaled_img = PILImage.fromarray(base_array)
+        
+        center_x = scaled_width / 2.0
+        center_y = scaled_height / 2.0
         
         def make_frame(t):
             progress = t / duration if duration > 0 else 0
+            progress = max(0.0, min(1.0, progress))
             eased = self._ease_in_out_cubic(progress)
             
             zoom, pan_x, pan_y = self._calculate_movement(
                 movement_type, eased, zoom_intensity
             )
             
-            new_w = int(self.width * zoom)
-            new_h = int(self.height * zoom)
+            crop_width = self.width / zoom
+            crop_height = self.height / zoom
             
-            resized = pil_img.resize((new_w, new_h), PILImage.LANCZOS)
+            offset_x = pan_x * crop_width * 0.5
+            offset_y = pan_y * crop_height * 0.5
             
-            left = (new_w - self.width) // 2 + int(pan_x * self.width)
-            top = (new_h - self.height) // 2 + int(pan_y * self.height)
-            left = max(0, min(left, new_w - self.width))
-            top = max(0, min(top, new_h - self.height))
+            left = center_x - crop_width / 2.0 + offset_x
+            top = center_y - crop_height / 2.0 + offset_y
+            right = left + crop_width
+            bottom = top + crop_height
             
-            cropped = resized.crop((left, top, left + self.width, top + self.height))
-            return np.array(cropped)
+            left = max(0, min(left, scaled_width - crop_width))
+            top = max(0, min(top, scaled_height - crop_height))
+            right = left + crop_width
+            bottom = top + crop_height
+            
+            cropped = scaled_img.crop((int(left), int(top), int(right), int(bottom)))
+            
+            final = cropped.resize(self.resolution, PILImage.LANCZOS)
+            return np.array(final)
         
         from moviepy.video.VideoClip import VideoClip
         clip = VideoClip(make_frame, duration=duration)
@@ -446,7 +463,8 @@ class SequentialVideoOrchestrator:
         self.enable_vignette = enable_vignette
         self.enable_film_grain = enable_film_grain
         self.duration_config_path = Path(duration_config_path) if duration_config_path else None
-        self.image_durations: Dict[int, float] = {}
+        self.image_durations: Dict[int, Dict] = {}
+        self.total_video_duration: float = 0
 
         if self.duration_config_path:
             self._load_duration_config()
@@ -456,7 +474,7 @@ class SequentialVideoOrchestrator:
         self.color_grading = ColorGrading()
 
     def _load_duration_config(self) -> None:
-        """Load image durations from JSON configuration file."""
+        """Load image durations and timing from JSON configuration file."""
         if not self.duration_config_path or not self.duration_config_path.exists():
             print(f"Duration config file not found: {self.duration_config_path}")
             return
@@ -465,22 +483,43 @@ class SequentialVideoOrchestrator:
             with open(self.duration_config_path, 'r') as f:
                 config = json.load(f)
 
+            metadata = config.get('video_metadata', {})
+            self.total_video_duration = metadata.get('total_duration_seconds', 0)
+            
             images_data = config.get('images', [])
             for img_data in images_data:
                 image_num = img_data.get('image')
                 duration = img_data.get('duration')
-                if image_num is not None and duration is not None:
-                    self.image_durations[image_num] = float(duration)
+                start_time = img_data.get('start_time')
+                end_time = img_data.get('end_time')
+                
+                if image_num is not None:
+                    self.image_durations[image_num] = {
+                        'duration': float(duration) if duration is not None else self.image_duration,
+                        'start_time': float(start_time) if start_time is not None else None,
+                        'end_time': float(end_time) if end_time is not None else None
+                    }
 
-            print(f"Loaded durations for {len(self.image_durations)} images from config")
+            print(f"Loaded timing data for {len(self.image_durations)} images from config")
+            if self.total_video_duration:
+                print(f"Total video duration from config: {self.total_video_duration}s")
         except (json.JSONDecodeError, KeyError) as e:
             print(f"Error loading duration config: {e}")
 
-    def get_duration_for_image(self, image_number: int) -> float:
-        """Get the duration for a specific image number."""
+    def get_timing_for_image(self, image_number: int) -> Dict:
+        """Get the full timing info for a specific image number."""
         if self.image_durations and image_number in self.image_durations:
             return self.image_durations[image_number]
-        return self.image_duration
+        return {
+            'duration': self.image_duration,
+            'start_time': None,
+            'end_time': None
+        }
+
+    def get_duration_for_image(self, image_number: int) -> float:
+        """Get the duration for a specific image number."""
+        timing = self.get_timing_for_image(image_number)
+        return timing.get('duration', self.image_duration)
 
     def discover_numbered_images(self) -> List[Tuple[int, Path]]:
         """Discover and sort images by their numeric prefix."""
@@ -611,9 +650,9 @@ class SequentialVideoOrchestrator:
     def create_image_clips(
         self,
         numbered_images: List[Tuple[int, Path]]
-    ) -> List[Tuple[ImageClip, str]]:
-        """Create animated clips for each image with movement and effects."""
-        clips = []
+    ) -> List[Dict]:
+        """Create animated clips for each image with movement, effects, and timing info."""
+        clips_data = []
         total = len(numbered_images)
 
         for i, (num, image_path) in enumerate(tqdm(numbered_images, desc="Processing images")):
@@ -630,12 +669,16 @@ class SequentialVideoOrchestrator:
                 print(f"Error loading image {image_path}: {e}")
                 continue
 
-            image_duration = self.get_duration_for_image(num)
+            timing = self.get_timing_for_image(num)
+            image_duration = timing.get('duration', self.image_duration)
+            start_time = timing.get('start_time')
+            end_time = timing.get('end_time')
+            
             movement = self._get_movement_for_image(i, total)
             print(f"  Duration: {image_duration}s")
+            print(f"  Start time: {start_time}s")
+            print(f"  End time: {end_time}s")
             print(f"  Movement style: {movement}")
-            print(f"  Color grade: {self.color_grade}")
-            print(f"  Vignette: {self.enable_vignette}")
 
             clip = self.movements.create_animated_clip(
                 image_path=image_path,
@@ -648,12 +691,84 @@ class SequentialVideoOrchestrator:
             )
 
             transition = self._get_transition_for_image(i, total)
-            clips.append((clip, transition))
+            clips_data.append({
+                'clip': clip,
+                'transition': transition,
+                'image_num': num,
+                'start_time': start_time,
+                'end_time': end_time,
+                'duration': image_duration
+            })
 
-        return clips
+        return clips_data
+
+    def create_timeline_video(self, clips_data: List[Dict]) -> CompositeVideoClip:
+        """Create video with clips positioned at their exact start times."""
+        if not clips_data:
+            return None
+
+        has_timing = clips_data[0].get('start_time') is not None
+        
+        if has_timing:
+            print("Creating timeline-based video with exact start/end times...")
+            positioned_clips = []
+            
+            for i, data in enumerate(clips_data):
+                clip = data['clip']
+                start_time = data['start_time']
+                duration = data['duration']
+                
+                if start_time is None:
+                    continue
+                
+                fade_duration = min(0.3, duration * 0.15)
+                
+                positioned_clip = (
+                    clip
+                    .set_start(start_time)
+                    .fadein(fade_duration)
+                    .fadeout(fade_duration)
+                )
+                positioned_clips.append(positioned_clip)
+                print(f"  Image {data['image_num']}: starts at {start_time}s, duration {duration}s")
+            
+            total_duration = self.total_video_duration
+            if not total_duration and clips_data:
+                last_clip = clips_data[-1]
+                total_duration = last_clip.get('end_time') or (last_clip.get('start_time', 0) + last_clip.get('duration', 0))
+            
+            print(f"Total video duration: {total_duration}s")
+            
+            background = ColorClip(
+                size=self.resolution,
+                color=(0, 0, 0),
+                duration=total_duration
+            )
+            
+            final_video = CompositeVideoClip(
+                [background] + positioned_clips,
+                size=self.resolution
+            ).set_duration(total_duration)
+            
+            return final_video
+        else:
+            print("No timing data available, using sequential concatenation...")
+            return self._concatenate_clips(clips_data)
+
+    def _concatenate_clips(self, clips_data: List[Dict]) -> CompositeVideoClip:
+        """Fallback method to concatenate clips sequentially."""
+        clean_clips = []
+        for data in clips_data:
+            clip = data['clip']
+            duration = data['duration']
+            fade_duration = min(self.crossfade_duration * 0.3, duration * 0.15)
+            clean_clip = clip.fadein(fade_duration).fadeout(fade_duration)
+            clean_clips.append(clean_clip)
+
+        return concatenate_videoclips(clean_clips, method="compose")
 
     def apply_transitions(self, clips_with_transitions: List[Tuple[ImageClip, str]]) -> CompositeVideoClip:
-        """Apply transitions between clips."""
+        """Apply transitions between clips (legacy method for backward compatibility)."""
         if len(clips_with_transitions) <= 1:
             if clips_with_transitions:
                 return clips_with_transitions[0][0]
@@ -695,15 +810,22 @@ class SequentialVideoOrchestrator:
         print(f"Transition style: {self.transition_style}")
         print(f"Movement style: {self.movement_style}")
         print(f"Color grade: {self.color_grade}")
+        if self.total_video_duration:
+            print(f"Target video duration: {self.total_video_duration}s")
 
         numbered_images = self.discover_numbered_images()
 
-        clips_with_transitions = self.create_image_clips(numbered_images)
+        clips_data = self.create_image_clips(numbered_images)
 
-        if not clips_with_transitions:
+        if not clips_data:
             raise ValueError("No valid image clips were created")
 
-        main_video = self.apply_transitions(clips_with_transitions)
+        main_video = self.create_timeline_video(clips_data)
+
+        if main_video is None:
+            raise ValueError("Failed to create timeline video")
+
+        print(f"Main video duration: {main_video.duration}s")
 
         overlays = [main_video]
 
