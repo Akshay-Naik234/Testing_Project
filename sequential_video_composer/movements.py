@@ -57,7 +57,25 @@ class MovementStyles:
         scaled_width = int(self.width * max_zoom * 1.05)
         scaled_height = int(self.height * max_zoom * 1.05)
         
-        base_img = base_img.resize((scaled_width, scaled_height), PILImage.LANCZOS)
+        orig_width, orig_height = base_img.size
+        orig_aspect = orig_width / orig_height
+        target_aspect = scaled_width / scaled_height
+        
+        if orig_aspect > target_aspect:
+            new_width = scaled_width
+            new_height = int(scaled_width / orig_aspect)
+        else:
+            new_height = scaled_height
+            new_width = int(scaled_height * orig_aspect)
+        
+        resized_img = base_img.resize((new_width, new_height), PILImage.LANCZOS)
+        
+        canvas = PILImage.new('RGB', (scaled_width, scaled_height), (0, 0, 0))
+        paste_x = (scaled_width - new_width) // 2
+        paste_y = (scaled_height - new_height) // 2
+        canvas.paste(resized_img, (paste_x, paste_y))
+        
+        base_img = canvas
         base_array = np.array(base_img)
 
         if color_grader and color_grade:
