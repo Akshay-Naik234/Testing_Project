@@ -53,7 +53,7 @@ class TTSEngine:
             audio_segments.append(audio)
 
         final_audio = self.processor.concatenate(audio_segments, crossfade_ms=30)
-        final_audio = self.processor._normalize(final_audio)
+        final_audio = self.processor.normalize(final_audio)
 
         if output_filename is None:
             output_filename = f"output_{uuid.uuid4().hex[:8]}.wav"

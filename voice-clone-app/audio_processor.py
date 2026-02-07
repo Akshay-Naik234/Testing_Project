@@ -16,7 +16,7 @@ class AudioProcessor:
             audio = self._apply_tremolo(audio, config.tremolo_depth, config.tremolo_rate)
         if config.breathiness > 0:
             audio = self._apply_breathiness(audio, config.breathiness)
-        return self._normalize(audio)
+        return self.normalize(audio)
 
     def _apply_pitch_shift(self, audio: np.ndarray, semitones: float) -> np.ndarray:
         if abs(semitones) < 0.01:
@@ -46,7 +46,7 @@ class AudioProcessor:
         noise = np.random.normal(0, 0.02, len(audio))
         return audio * (1 - amount) + noise * amount
 
-    def _normalize(self, audio: np.ndarray) -> np.ndarray:
+    def normalize(self, audio: np.ndarray) -> np.ndarray:
         peak = np.max(np.abs(audio))
         if peak > 0:
             audio = audio / peak * 0.95
