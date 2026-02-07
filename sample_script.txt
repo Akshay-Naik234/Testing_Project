@@ -1,0 +1,25 @@
+<happy>Welcome to our voice cloning demo! This is absolutely fantastic!</happy>
+
+<break time="500ms"/>
+
+<neutral>Now let me explain how this technology works. We take a small sample of your voice and use it to generate speech that sounds just like you.</neutral>
+
+<break time="300ms"/>
+
+<excited>The possibilities are endless! Imagine creating audiobooks, podcasts, or voiceovers in minutes!</excited>
+
+<break time="500ms"/>
+
+<sad>Unfortunately, not everyone has access to professional voice actors or recording studios.</sad>
+
+<break time="300ms"/>
+
+<authoritative>That is exactly why we built this tool. It democratizes voice technology for everyone.</authoritative>
+
+<break time="500ms"/>
+
+<whisper>And here is a little secret — it all runs locally on your machine, no cloud required.</whisper>
+
+<break time="300ms"/>
+
+<calm>Thank you for trying out our voice cloning application. We hope you enjoy using it.</calm>
